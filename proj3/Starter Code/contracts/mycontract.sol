@@ -13,6 +13,9 @@ contract Splitwise {
     mapping(address => uint32) users;
     mapping(address => bool) has_user;
     uint32 private person_idx = 0;
+    uint32[] path = new uint32[](matrix.length);
+    bool[] visited = new bool[](matrix.length);
+
 
     function user_exists(address key) public view returns (bool) {
         return has_user[key];
@@ -42,19 +45,26 @@ contract Splitwise {
         if (!user_exists(creditor)) add_user(creditor);
         uint32 debtor_id = users[msg.sender];
         uint32 creditor_id = users[creditor];
+        path = new uint32[](matrix.length);
+        visited = new bool[](matrix.length);
         matrix[debtor_id][creditor_id] += amount;
-        uint32[] memory path = new uint32[](matrix.length);
-        bool[] memory visited = new bool[](matrix.length);
-        find_path(creditor_id, debtor_id, path, visited, 0);
+        find_path(creditor_id, debtor_id, 0);
         uint32 curr_min = amount;
+        if (path[path.length - 1] != debtor_id) return;
         for (uint32 i = 0; i < path.length; i++) if (curr_min > matrix[path[i]][path[(i + 1) % path.length]]) curr_min = matrix[path[i]][path[(i + 1) % path.length]];
         for (uint32 i = 0; i < path.length; i++) matrix[path[i]][path[(i + 1) % path.length]] -= curr_min;
+        for (uint i = 0; i < matrix.length; i++) {
+            path[i] = 0;
+            visited[i] = false;
+        }
     }
 
-    function find_path(uint32 curr_vertex, uint32 destination, uint32[] memory path, bool[] memory visited, uint32 curr_idx) private {
+    function find_path(uint32 curr_vertex, uint32 destination, uint32 curr_idx) private {
         path[curr_idx] = curr_vertex;
         if (curr_vertex == destination) return;
         visited[curr_vertex] = true;
-        for (uint32 nxt = 0; nxt < matrix.length; nxt++) if (!visited[nxt]) find_path(nxt, destination, path, visited, curr_idx + 1);
+        for (uint32 nxt = 0; nxt < matrix.length; nxt++)
+            if (!visited[nxt] && matrix[curr_vertex][nxt] > 0)
+                find_path(nxt, destination, curr_idx + 1);
     }
 }
