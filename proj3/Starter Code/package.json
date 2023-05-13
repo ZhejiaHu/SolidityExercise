@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "dependencies": {
     "chai": "^4.3.7",
-    "hardhat": "^2.14.0"
+    "hardhat": "^2.14.0",
+    "solc": "^0.8.17"
   }
 }

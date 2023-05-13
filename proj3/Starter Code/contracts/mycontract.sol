@@ -13,8 +13,9 @@ contract Splitwise {
     mapping(address => uint32) users;
     mapping(address => bool) has_user;
     uint32 private person_idx = 0;
-    uint32[] path = new uint32[](matrix.length);
-    bool[] visited = new bool[](matrix.length);
+    uint256 public debug = 999;
+    uint32[] path;
+    bool[] visited;
 
 
     function user_exists(address key) public view returns (bool) {
@@ -40,7 +41,7 @@ contract Splitwise {
         return false;
     }
 
-    function add_IOU(address creditor, uint32 amount) payable public {
+    function add_IOU(address creditor, uint32 amount) public {
         if (!user_exists(msg.sender)) add_user(msg.sender);
         if (!user_exists(creditor)) add_user(creditor);
         uint32 debtor_id = users[msg.sender];
@@ -48,23 +49,37 @@ contract Splitwise {
         path = new uint32[](matrix.length);
         visited = new bool[](matrix.length);
         matrix[debtor_id][creditor_id] += amount;
-        find_path(creditor_id, debtor_id, 0);
+        uint32 len = find_path(creditor_id, debtor_id, 0);
         uint32 curr_min = amount;
-        if (path[path.length - 1] != debtor_id) return;
-        for (uint32 i = 0; i < path.length; i++) if (curr_min > matrix[path[i]][path[(i + 1) % path.length]]) curr_min = matrix[path[i]][path[(i + 1) % path.length]];
-        for (uint32 i = 0; i < path.length; i++) matrix[path[i]][path[(i + 1) % path.length]] -= curr_min;
-        for (uint i = 0; i < matrix.length; i++) {
-            path[i] = 0;
-            visited[i] = false;
-        }
+        //debug = creditor_id;
+        if (len == 1 || len == (1 << 32) - 1 || path[len] != debtor_id) return;
+        for (uint32 i = 0; i <= len; i++) if (curr_min > matrix[path[i]][path[(i + 1) % (len + 1)]]) curr_min = matrix[path[i]][path[(i + 1) % path.length]];
+        for (uint32 i = 0; i <= len; i++) matrix[path[i]][path[(i + 1) % (len + 1)]] -= curr_min;
+        delete path;
+        delete visited;
     }
 
-    function find_path(uint32 curr_vertex, uint32 destination, uint32 curr_idx) private {
+    function find_path(uint32 curr_vertex, uint32 destination, uint32 curr_idx) private returns (uint32) {
         path[curr_idx] = curr_vertex;
-        if (curr_vertex == destination) return;
+        if (curr_vertex == 0 && destination == 4) debug = matrix[0][1];
+        if (curr_vertex == destination) return curr_idx;
         visited[curr_vertex] = true;
-        for (uint32 nxt = 0; nxt < matrix.length; nxt++)
-            if (!visited[nxt] && matrix[curr_vertex][nxt] > 0)
-                find_path(nxt, destination, curr_idx + 1);
+        for (uint32 nxt = 0; nxt < matrix.length; nxt++) {
+            uint32 cnt = 0;
+
+            if (!visited[nxt] && matrix[curr_vertex][nxt] > 0) {
+                if (curr_vertex == 1) {
+                    cnt++;
+                    //debug = matrix[curr_vertex][nxt];
+                }
+                uint32 result = find_path(nxt, destination, curr_idx + 1);
+                if (result != (1 << 32 - 1)) return result;
+            }
+        }
+        return (1 << 32) - 1;
+    }
+
+    function get_matrix() view public returns (uint32[][] memory) {
+        return matrix;
     }
 }
