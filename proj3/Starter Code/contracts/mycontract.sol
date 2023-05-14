@@ -9,9 +9,10 @@ contract Splitwise {
     // DO NOT MODIFY ABOVE THIS
     // ADD YOUR CONTRACT CODE BELOW
 
-    uint32[][] private matrix;
-    mapping(address => uint32) users;
+    uint32[][] public matrix;
+    mapping(address => uint32) public users;
     mapping(address => bool) has_user;
+    address[] public all_clients;
     uint32 private person_idx = 0;
     uint256 public debug = 999;
     uint32[] path;
@@ -34,6 +35,7 @@ contract Splitwise {
         for (uint32 i = 0; i < matrix.length; i++) matrix[i].push();
         uint32[] memory new_array = new uint32[](person_idx);
         matrix.push(new_array);
+        all_clients.push(user);
     }
 
     function in_array(uint32[] memory array, uint32 element) private pure returns (bool) {
@@ -82,4 +84,13 @@ contract Splitwise {
     function get_matrix() view public returns (uint32[][] memory) {
         return matrix;
     }
+
+    function get_all_clients() view public returns (address[] memory) {
+        return all_clients;
+    }
+
+    function get_user_id(address addr) view public returns(uint32) {
+        return users[addr];
+    }
+
 }

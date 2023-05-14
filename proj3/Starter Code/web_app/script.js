@@ -9,12 +9,194 @@ var GENESIS = '0x000000000000000000000000000000000000000000000000000000000000000
 
 // This is the ABI for your contract (get it from Remix, in the 'Compile' tab)
 // ============================================================
-var abi = []; // FIXME: fill this in with your contract's ABI //Be sure to only have one array, not two
+var abi = [
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "creditor",
+				"type": "address"
+			},
+			{
+				"internalType": "uint32",
+				"name": "amount",
+				"type": "uint32"
+			}
+		],
+		"name": "add_IOU",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "all_clients",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "debug",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "get_all_clients",
+		"outputs": [
+			{
+				"internalType": "address[]",
+				"name": "",
+				"type": "address[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "get_matrix",
+		"outputs": [
+			{
+				"internalType": "uint32[][]",
+				"name": "",
+				"type": "uint32[][]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "addr",
+				"type": "address"
+			}
+		],
+		"name": "get_user_id",
+		"outputs": [
+			{
+				"internalType": "uint32",
+				"name": "",
+				"type": "uint32"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "debtor",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "creditor",
+				"type": "address"
+			}
+		],
+		"name": "lookup",
+		"outputs": [
+			{
+				"internalType": "uint32",
+				"name": "ret",
+				"type": "uint32"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "matrix",
+		"outputs": [
+			{
+				"internalType": "uint32",
+				"name": "",
+				"type": "uint32"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "key",
+				"type": "address"
+			}
+		],
+		"name": "user_exists",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "users",
+		"outputs": [
+			{
+				"internalType": "uint32",
+				"name": "",
+				"type": "uint32"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+]; // FIXME: fill this in with your contract's ABI //Be sure to only have one array, not two
 // ============================================================
 abiDecoder.addABI(abi);
 // call abiDecoder.decodeMethod to use this - see 'getAllFunctionCalls' for more
 
-var contractAddress = ""; // FIXME: fill this in with your contract's address/hash
+var contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; // FIXME: fill this in with your contract's address/hash
 
 var BlockchainSplitwise = new ethers.Contract(contractAddress, abi, provider.getSigner());
 
@@ -27,26 +209,49 @@ var BlockchainSplitwise = new ethers.Contract(contractAddress, abi, provider.get
 // TODO: Return a list of all users (creditors or debtors) in the system
 // All users in the system are everyone who has ever sent or received an IOU
 async function getUsers() {
+	let clients = []
+	try {
+		clients = await BlockchainSplitwise.get_all_clients();
+		console.log('Clients value:', clients);
+	} catch (error) {
+		console.error('Error:', error);
+	}
 
+	return clients;
 }
 
 // TODO: Get the total amount owed by the user specified by 'user'
 async function getTotalOwed(user) {
-
+	const matrix = await BlockchainSplitwise.get_matrix();
+	const userId = await BlockchainSplitwise.get_user_id(user);
+	const numUser = matrix.length;
+	let totalOwned = 0;
+	for (let i = 0; i < numUser; i++) totalOwned += matrix[userId][i];
+	return totalOwned;
 }
 
 // TODO: Get the last time this user has sent or received an IOU, in seconds since Jan. 1, 1970
 // Return null if you can't find any activity for the user.
 // HINT: Try looking at the way 'getAllFunctionCalls' is written. You can modify it if you'd like.
 async function getLastActive(user) {
-	
+	console.log((await getAllFunctionCalls(contractAddress, "add_IOU")));
+	const userCalls = (await getAllFunctionCalls(contractAddress, "add_IOU")).filter((call) => call.from === user.toLowerCase() || call.args[0] === user.toLowerCase()).map((call) => call.t)
+	if (userCalls.length === 0) return null;
+	const ret = Math.max(...userCalls);
+	console.log(ret);
+	return ret;
+
 }
 
 // TODO: add an IOU ('I owe you') to the system
 // The person you owe money is passed as 'creditor'
 // The amount you owe them is passed as 'amount'
 async function add_IOU(creditor, amount) {
-	
+	await BlockchainSplitwise.add_IOU(creditor, amount).then((tx) => {
+		console.log('Transaction sent:', tx.hash);
+	}).catch((error) => {
+		console.error('Error:', error);
+	});
 }
 
 // =============================================================================
@@ -228,4 +433,4 @@ async function sanityCheck() {
 	console.log("Final Score: " + score +"/21");
 }
 
-// sanityCheck() //Uncomment this line to run the sanity check when you first open index.html
+sanityCheck() //Uncomment this line to run the sanity check when you first open index.html
