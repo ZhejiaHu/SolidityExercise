@@ -12,6 +12,7 @@ describe("Splitwise basic test: With update", function () {
         await split_wise.connect(account2).add_IOU(addresses[2], 4);
         await split_wise.connect(account3).add_IOU(addresses[0], 5);
         const result = await split_wise.connect(account1).lookup(addresses[0], addresses[1]);
+        //console.log(await split_wise.connect(account1).debug());
        expect(result).to.equal(0);
     });
 
@@ -148,9 +149,7 @@ describe("Splitwise basic test: With update", function () {
         for (let edge of edges) {
             const from = edge[0], to = edge[1], amount = edge[2];
             await split_wise.connect(accounts[from]).add_IOU(addresses[to], amount);
-            console.log(await split_wise.connect(accounts[0]).debug())
         }
-        console.log(await split_wise.connect(accounts[0]).get_matrix())
         for (let edge of edges) {
             const from = edge[0], to = edge[1], ans = edge[3];
             const result = await split_wise.connect(accounts[from]).lookup(addresses[from], addresses[to]);

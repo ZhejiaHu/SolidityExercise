@@ -1,4 +1,44 @@
-11/05/2023: Deploying mycontract.sol
+15/05/2023:
+* Initial Deployment
+    - Deploying mycontract.sol:
+        -- Transaction cost: 1544636
+        -- Execution cost: 1386190
+
+    - Call add_IOU("0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2", 3):
+        -- Transaction cost: 390329
+        -- Execution cost: 368757
+
+    - Call lookup("0x5B38Da6a701c568545dCfcB03FcB875f56beddC4", "0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2"):
+        -- Execution cost: 16557
+
+
+* After removing unnecessary logic and state variables, and change type from uint32 to uint256
+    - Deploying smartcontract.sol:
+        -- Transaction cost: 1370400
+        -- Execution cost: 1223268
+
+    - Call add_IOU("0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2", 3):
+        -- Transaction cost: 366616
+        -- Execution cost: 345044
+
+    - Call lookup("0x5B38Da6a701c568545dCfcB03FcB875f56beddC4", "0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2"):
+        -- Execution cost: 16451
+
+
+* After removing more state variables and introducing temporary variables for frequent operations
+    - Deploying smartcontract.sol:
+        -- Transaction cost: 1373673
+        -- Execution cost: 1226275
+
+    - Call add_IOU("0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2", 3):
+        -- Transaction cost: 342399
+        -- Execution cost: 320827
+
+    - Call lookup("0x5B38Da6a701c568545dCfcB03FcB875f56beddC4", "0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2"):
+        -- Execution cost: 12767
+
+
+
 
 
 
