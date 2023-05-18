@@ -38,6 +38,17 @@
         -- Execution cost: 12767
 
 
+* Changing data structure of storage variable matrix from uint32[][] to mapping:
+    - Deploying smartcontract.sol:
+        -- Transaction cost: 1226826
+        -- Execution cost: 1090534
+
+    - Call add_IOU("0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2", 3):
+        -- Transaction cost: 235560
+        -- Execution cost: 213988
+
+    - Call lookup("0x5B38Da6a701c568545dCfcB03FcB875f56beddC4", "0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2"):
+        -- Execution cost: 7827
 
 
 

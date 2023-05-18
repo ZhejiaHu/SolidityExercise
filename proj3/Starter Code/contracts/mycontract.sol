@@ -9,73 +9,64 @@ contract Splitwise {
     // DO NOT MODIFY ABOVE THIS
     // ADD YOUR CONTRACT CODE BELOW
 
-    uint32[][] public matrix;
-    mapping(address => uint256) public users;
+    //uint32[][] public matrix;
+    mapping(address => mapping(address => uint32)) matrix;
+    mapping(address => bool) public users;
     address[] public all_clients;
-    uint256[] path;
-    bool[] visited;
+    address[] path;
+    mapping(address => bool) public visited;
 
 
     function user_exists(address key) public view returns (bool) {
-        return users[key] > 0;
+        return users[key];
     }
 
     function lookup(address debtor, address creditor) public view returns (uint32 ret) {
         if (!user_exists(debtor) || !user_exists(creditor)) ret = 0;
-        else ret = matrix[users[debtor] - 1][users[creditor] - 1];
+        else ret = matrix[debtor][creditor];
     }
 
     function add_user(address user) private {
-        users[user] = matrix.length + 1;
-        for (uint32 i = 0; i < matrix.length; i++) matrix[i].push();
-        uint32[] memory new_array = new uint32[](matrix.length + 1);
-        matrix.push(new_array);
+        users[user] = true;
         all_clients.push(user);
+        require(!visited[user], "I do not know what the heck is going on. ");
     }
 
     function add_IOU(address creditor, uint32 amount) public {
-        if (!user_exists(msg.sender)) add_user(msg.sender);
+        address debtor = msg.sender;
+        if (!user_exists(debtor)) add_user(debtor);
         if (!user_exists(creditor)) add_user(creditor);
-        uint256 debtor_id = users[msg.sender] - 1;
-        uint256 creditor_id = users[creditor] - 1;
-        uint mat_len = matrix.length;
-        path = new uint32[](mat_len);
-        visited = new bool[](mat_len);
-        matrix[debtor_id][creditor_id] += amount;
-        uint256 len = find_path(creditor_id, debtor_id, 0);
+        uint mat_len = all_clients.length;
+        path = new address[](mat_len);
+        matrix[debtor][creditor] += amount;
+        for (uint i = 0; i < mat_len; i++) visited[all_clients[i]] = false;
+        uint256 len = find_path(creditor, debtor, 0);
         uint32 curr_min = amount;
-        //debug = creditor_id;
-        if (len == 1 || len == (1 << 32) - 1 || path[len] != debtor_id) return;
+        if (len == 1 || len == type(uint256).max || path[len] != debtor) return;
         uint256 next_len = len + 1;
-        for (uint32 i = 0; i <= len; i++) if (curr_min > matrix[path[i]][path[(i + 1) % next_len]]) curr_min = matrix[path[i]][path[(i + 1) % path.length]];
-        for (uint32 i = 0; i <= len; i++) matrix[path[i]][path[(i + 1) % next_len]] -= curr_min;
+        for (uint i = 0; i <= len; i++) if (curr_min > matrix[path[i]][path[(i + 1) % next_len]]) curr_min = matrix[path[i]][path[(i + 1) % path.length]];
+        for (uint i = 0; i <= len; i++) matrix[path[i]][path[(i + 1) % next_len]] -= curr_min;
         delete path;
-        delete visited;
     }
 
-    function find_path(uint256 curr_vertex, uint256 destination, uint256 curr_idx) private returns (uint256) {
+    function find_path(address curr_vertex, address destination, uint256 curr_idx) private returns (uint) {
         path[curr_idx] = curr_vertex;
         if (curr_vertex == destination) return curr_idx;
         visited[curr_vertex] = true;
-        for (uint32 nxt = 0; nxt < matrix.length; nxt++) {
-            if (!visited[nxt] && matrix[curr_vertex][nxt] > 0) {
-                uint256 result = find_path(nxt, destination, curr_idx + 1);
-                if (result != (1 << 32 - 1)) return result;
+        for (uint nxt = 0; nxt < all_clients.length; nxt++) {
+            address nxt_vertex = all_clients[nxt];
+            if (!visited[nxt_vertex] && matrix[curr_vertex][nxt_vertex] > 0) {
+                uint256 result = find_path(nxt_vertex, destination, curr_idx + 1);
+                if (result != type(uint256).max) return result;
             }
         }
-        return (1 << 32) - 1;
+        return type(uint256).max;
     }
 
-    function get_matrix() view public returns (uint32[][] memory) {
-        return matrix;
-    }
 
     function get_all_clients() view public returns (address[] memory) {
         return all_clients;
     }
 
-    function get_user_id(address addr) view public returns(uint256) {
-        return users[addr] - 1;
-    }
 
 }
