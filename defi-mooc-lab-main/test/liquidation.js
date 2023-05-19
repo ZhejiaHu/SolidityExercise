@@ -9,7 +9,7 @@ describe("Liquidation", function () {
         method: "hardhat_reset",
         params: [{
           forking: {
-            jsonRpcUrl: process.env.ALCHE_API,
+            jsonRpcUrl: "https://eth-mainnet.g.alchemy.com/v2/FHU0YdyQWyts3u2Yt6n7xdOkri8aDjG2",
             blockNumber: 12489619,
           }
         }]
@@ -20,7 +20,7 @@ describe("Liquidation", function () {
     const accounts = await ethers.getSigners();
     const liquidator = accounts[0].address;
 
-    const beforeLiquidationBalance = BigNumber.from(await hre.network.provider.request({
+    const beforeLiquidationBalance = BigNumber.from(await network.provider.request({
         method: "eth_getBalance",
         params: [liquidator],
     }));

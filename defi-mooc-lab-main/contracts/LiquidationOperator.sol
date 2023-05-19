@@ -137,6 +137,11 @@ contract LiquidationOperator is IUniswapV2Callee {
 
     // TODO: define constants used in the contract including ERC-20 tokens, Uniswap Pairs, Aave lending pools, etc. */
     //    *** Your code here ***
+    ILendingPool aav2LendingPool = ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
+    address targetUser = 0x59CE4a2AC5bC3f5F225439B2993b86B42f6d3e9F;
+
+
+
     // END TODO
 
     // some helper function, it is totally fine if you can finish the lab without using these function
@@ -193,10 +198,17 @@ contract LiquidationOperator is IUniswapV2Callee {
 
         // 0. security checks and initializing variables
         //    *** Your code here ***
-
         // 1. get the target user account data & make sure it is liquidatable
         //    *** Your code here ***
-
+        (
+            uint256 targetTotalCollateralETH,
+            uint256 targetTotalDebtETH,
+            uint256 targetAvailableBorrowsETH,
+            uint256 targetCurrentLiquidationThreshold,
+            uint256 targetLTV,
+            uint256 targetHealthFactor
+        ) = getUserAccountData(targetUser);
+        if (targetHealthFactor >= 10 ** health_factor_decimals) return;
         // 2. call flash swap to liquidate the target user
         // based on https://etherscan.io/tx/0xac7df37a43fab1b130318bbb761861b8357650db2e2c6493b73d6da3d9581077
         // we know that the target user borrowed USDT with WBTC as collateral
