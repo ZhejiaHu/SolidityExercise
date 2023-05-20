@@ -2,7 +2,6 @@
 pragma solidity ^0.8.7;
 
 import "hardhat/console.sol";
-
 // ----------------------INTERFACE------------------------------
 
 // Aave
@@ -138,8 +137,13 @@ contract LiquidationOperator is IUniswapV2Callee {
     // TODO: define constants used in the contract including ERC-20 tokens, Uniswap Pairs, Aave lending pools, etc. */
     //    *** Your code here ***
     ILendingPool aav2LendingPool = ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
+    IUniswapV2Factory uniswapFactory = IUniswapV2Factory(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f);
+    address pairAddress;
+    IUniswapV2Pair uniswapPair;
     address targetUser = 0x59CE4a2AC5bC3f5F225439B2993b86B42f6d3e9F;
-
+    uint totalDebt;
+    address WETHAddress = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address USDTAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
 
 
     // END TODO
@@ -198,6 +202,7 @@ contract LiquidationOperator is IUniswapV2Callee {
 
         // 0. security checks and initializing variables
         //    *** Your code here ***
+        address invoker = msg.sender;
         // 1. get the target user account data & make sure it is liquidatable
         //    *** Your code here ***
         (
@@ -207,42 +212,73 @@ contract LiquidationOperator is IUniswapV2Callee {
             uint256 targetCurrentLiquidationThreshold,
             uint256 targetLTV,
             uint256 targetHealthFactor
-        ) = getUserAccountData(targetUser);
-        if (targetHealthFactor >= 10 ** health_factor_decimals) return;
+        ) = aav2LendingPool.getUserAccountData(targetUser);
+        require(targetHealthFactor < 10 ** health_factor_decimals, "The target user does not need to be liquidated");
+       totalDebt = targetTotalDebtETH;
         // 2. call flash swap to liquidate the target user
         // based on https://etherscan.io/tx/0xac7df37a43fab1b130318bbb761861b8357650db2e2c6493b73d6da3d9581077
         // we know that the target user borrowed USDT with WBTC as collateral
         // we should borrow USDT, liquidate the target user and get the WBTC, then swap WBTC to repay uniswap
         // (please feel free to develop other workflows as long as they liquidate the target user successfully)
         //    *** Your code here ***
+        pairAddress = uniswapFactory.getPair(WETHAddress, USDTAddress);
+        uniswapPair = IUniswapV2Pair(pairAddress);
+        (uint112 currWETHReserve, uint112 currUSDTReserve, uint32 timeStamp) = uniswapPair.getReserves();
+        require(currUSDTReserve != 0, "The pool is lacking liquidity.");
+        console.log(
+            "The total debt is %s | the reserved WETH is %s and the reserved USDT reserve is",
+            targetTotalDebtETH,
+            currWETHReserve,
+            currUSDTReserve
+        );
+        uint256 requiredTokenAmount = getAmountOut(targetTotalDebtETH, currWETHReserve, currUSDTReserve);
+        IERC20 wethToken = IERC20(WETHAddress);
+        //require(msg.value >= requiredWETHTokenAmount, "There is not sufficient WETH token in the invoker's account.");
+        uint256 WETHBalanceBefore = wethToken.balanceOf(address(this));
+        uniswapPair.swap(0, requiredTokenAmount, address(this), abi.encode("data"));
 
         // 3. Convert the profit into ETH and send back to sender
         //    *** Your code here ***
-
+        uint256 WETHBalanceAfter = wethToken.balanceOf(address(this));
+        console.log("WETH balance before %s | WETH balance after %s.", WETHBalanceBefore, WETHBalanceAfter);
+        require(WETHBalanceAfter >= WETHBalanceBefore, "The trade is losing money");
+        IWETH iWETH = IWETH(WETHAddress);
+        payable(invoker).transfer(WETHBalanceAfter - WETHBalanceBefore);
         // END TODO
     }
 
-    // required by the swap
+    // required by the swap WETH -> USDT
     function uniswapV2Call(
-        address,
-        uint256,
+        address sender,
+        uint256 amount0,
         uint256 amount1,
-        bytes calldata
+        bytes calldata data
     ) external override {
         // TODO: implement your liquidation logic
 
         // 2.0. security checks and initializing variables
         //    *** Your code here ***
-
         // 2.1 liquidate the target user
         //    *** Your code here ***
-
+        console.log("Callback function has been invoked!");
+        address WBTCAddress = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
+        address USDTAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+        totalDebt = type(uint).max;
+        IERC20(USDTAddress).approve(address(aav2LendingPool), totalDebt);
+        aav2LendingPool.liquidationCall(WBTCAddress, USDTAddress, targetUser, totalDebt, false);
         // 2.2 swap WBTC for other things or repay directly
         //    *** Your code here ***
-
+        IUniswapV2Pair tempSwap =  IUniswapV2Pair(uniswapFactory.getPair(WBTCAddress, USDTAddress));
+        //WBTC -> USDT => USDT -> WETH
+        (uint112 currWBTCReserve, uint112 currUSDTReserve, uint32 timeStamp) = tempSwap.getReserves();
+        console.log("Required USDT from us: %s | WBTC <-> USDT Exchange pool: WBTC - %s : USDT - %s", amount1, currWBTCReserve, currUSDTReserve);
+        tempSwap.swap(0, amount1, address(this), abi.encode());
         // 2.3 repay
         //    *** Your code here ***
-        
+        console.log("Swapping WBTC to USDT succeeds.");
+        IERC20 USDTToken = IERC20(USDTAddress);
+        require(USDTToken.balanceOf(address(this)) >= amount1, "Losing money or the liquidation fails.");
+        USDTToken.transfer(pairAddress, amount1);
         // END TODO
     }
 }
