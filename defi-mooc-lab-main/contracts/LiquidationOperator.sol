@@ -138,12 +138,27 @@ contract LiquidationOperator is IUniswapV2Callee {
     //    *** Your code here ***
     ILendingPool aav2LendingPool = ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
     IUniswapV2Factory uniswapFactory = IUniswapV2Factory(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f);
-    address pairAddress;
-    IUniswapV2Pair uniswapPair;
     address targetUser = 0x59CE4a2AC5bC3f5F225439B2993b86B42f6d3e9F;
-    uint totalDebt;
     address WETHAddress = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address USDTAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address WBTCAddress = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
+
+    IERC20 WETHToken;
+    IERC20 USDTToken;
+    IERC20 WBTCToken;
+
+    IUniswapV2Pair wethUSDTPair;
+    IUniswapV2Pair wethWBTCPair;
+    IUniswapV2Pair usdtWBTCPair;
+
+    uint256 wethUSDTPair_weth_reserve;
+    uint256 wethUSDTPair_usdt_reserve;
+    uint256 wethWBTCPair_weth_reserve;
+    uint256 wethWBTCPair_wbtc_reserve;
+    uint256 usdtWBTCPair_usdt_reserve;
+    uint256 usdtWBTCPair_wbtc_reserve;
+
+    uint256 usdt_outstanding;
 
 
     // END TODO
@@ -190,7 +205,23 @@ contract LiquidationOperator is IUniswapV2Callee {
         // TODO: (optional) initialize your contract
         //   *** Your code here ***
         // END TODO
+
+        wethUSDTPair = IUniswapV2Pair(uniswapFactory.getPair(WETHAddress, USDTAddress));
+        wethWBTCPair = IUniswapV2Pair(uniswapFactory.getPair(WETHAddress, WBTCAddress));
+        usdtWBTCPair = IUniswapV2Pair(uniswapFactory.getPair(USDTAddress, WBTCAddress));
+        WETHToken = IERC20(WETHAddress);
+        USDTToken = IERC20(USDTAddress);
+        WBTCToken = IERC20(WBTCAddress);
+        uint32 t1;
+        uint32 t2;
+        uint32 t3;
+        (wethUSDTPair_weth_reserve, wethUSDTPair_usdt_reserve, t1) = wethUSDTPair.getReserves();
+        (wethWBTCPair_wbtc_reserve, wethWBTCPair_weth_reserve, t2) = wethWBTCPair.getReserves();
+        (usdtWBTCPair_wbtc_reserve, usdtWBTCPair_usdt_reserve, t3) = usdtWBTCPair.getReserves();
+        console.log("IN the USDT-WBTC pool, the number of WBTC is %s : ths number fo USDT is %s.", usdtWBTCPair_wbtc_reserve, usdtWBTCPair_usdt_reserve);
     }
+
+
 
     // TODO: add a `receive` function so that you can withdraw your WETH
     //   *** Your code here ***
@@ -206,44 +237,20 @@ contract LiquidationOperator is IUniswapV2Callee {
         // 1. get the target user account data & make sure it is liquidatable
         //    *** Your code here ***
         (
-            uint256 targetTotalCollateralETH,
-            uint256 targetTotalDebtETH,
-            uint256 targetAvailableBorrowsETH,
-            uint256 targetCurrentLiquidationThreshold,
-            uint256 targetLTV,
-            uint256 targetHealthFactor
+            uint256 totalCollateralETH,
+            uint256 totalDebtETH,
+            uint256 availableBorrowsETH,
+            uint256 currentLiquidationThreshold,
+            uint256 lTV,
+            uint256 healthFactor
+    
         ) = aav2LendingPool.getUserAccountData(targetUser);
-        require(targetHealthFactor < 10 ** health_factor_decimals, "The target user does not need to be liquidated");
-       totalDebt = targetTotalDebtETH;
-        // 2. call flash swap to liquidate the target user
-        // based on https://etherscan.io/tx/0xac7df37a43fab1b130318bbb761861b8357650db2e2c6493b73d6da3d9581077
-        // we know that the target user borrowed USDT with WBTC as collateral
-        // we should borrow USDT, liquidate the target user and get the WBTC, then swap WBTC to repay uniswap
-        // (please feel free to develop other workflows as long as they liquidate the target user successfully)
-        //    *** Your code here ***
-        pairAddress = uniswapFactory.getPair(WETHAddress, USDTAddress);
-        uniswapPair = IUniswapV2Pair(pairAddress);
-        (uint112 currWETHReserve, uint112 currUSDTReserve, uint32 timeStamp) = uniswapPair.getReserves();
-        require(currUSDTReserve != 0, "The pool is lacking liquidity.");
-        console.log(
-            "The total debt is %s | the reserved WETH is %s and the reserved USDT reserve is",
-            targetTotalDebtETH,
-            currWETHReserve,
-            currUSDTReserve
-        );
-        uint256 requiredTokenAmount = getAmountOut(targetTotalDebtETH, currWETHReserve, currUSDTReserve);
-        IERC20 wethToken = IERC20(WETHAddress);
-        //require(msg.value >= requiredWETHTokenAmount, "There is not sufficient WETH token in the invoker's account.");
-        uint256 WETHBalanceBefore = wethToken.balanceOf(address(this));
-        uniswapPair.swap(0, requiredTokenAmount, address(this), abi.encode("data"));
-
-        // 3. Convert the profit into ETH and send back to sender
-        //    *** Your code here ***
-        uint256 WETHBalanceAfter = wethToken.balanceOf(address(this));
-        console.log("WETH balance before %s | WETH balance after %s.", WETHBalanceBefore, WETHBalanceAfter);
-        require(WETHBalanceAfter >= WETHBalanceBefore, "The trade is losing money");
-        IWETH iWETH = IWETH(WETHAddress);
-        payable(invoker).transfer(WETHBalanceAfter - WETHBalanceBefore);
+        require(healthFactor < 10 ** health_factor_decimals, "The target user does not need to be liquidated");
+        uint256 eth_outstanding = totalDebtETH - totalCollateralETH * 2 / 3;
+        usdt_outstanding = getAmountOut(eth_outstanding, wethUSDTPair_weth_reserve, wethUSDTPair_usdt_reserve);
+        console.log("The USDT outstanding is %s", usdt_outstanding);
+        if (usdt_outstanding > usdtWBTCPair_usdt_reserve) usdt_outstanding = usdtWBTCPair_usdt_reserve;
+        usdtWBTCPair.swap(0, usdt_outstanding / 2, address(this), abi.encode("data"));
         // END TODO
     }
 
@@ -255,30 +262,19 @@ contract LiquidationOperator is IUniswapV2Callee {
         bytes calldata data
     ) external override {
         // TODO: implement your liquidation logic
-
+        console.log("Callback function is triggered");
         // 2.0. security checks and initializing variables
         //    *** Your code here ***
         // 2.1 liquidate the target user
         //    *** Your code here ***
-        console.log("Callback function has been invoked!");
-        address WBTCAddress = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
-        address USDTAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
-        totalDebt = type(uint).max;
-        IERC20(USDTAddress).approve(address(aav2LendingPool), totalDebt);
-        aav2LendingPool.liquidationCall(WBTCAddress, USDTAddress, targetUser, totalDebt, false);
-        // 2.2 swap WBTC for other things or repay directly
-        //    *** Your code here ***
-        IUniswapV2Pair tempSwap =  IUniswapV2Pair(uniswapFactory.getPair(WBTCAddress, USDTAddress));
-        //WBTC -> USDT => USDT -> WETH
-        (uint112 currWBTCReserve, uint112 currUSDTReserve, uint32 timeStamp) = tempSwap.getReserves();
-        console.log("Required USDT from us: %s | WBTC <-> USDT Exchange pool: WBTC - %s : USDT - %s", amount1, currWBTCReserve, currUSDTReserve);
-        tempSwap.swap(0, amount1, address(this), abi.encode());
-        // 2.3 repay
-        //    *** Your code here ***
-        console.log("Swapping WBTC to USDT succeeds.");
-        IERC20 USDTToken = IERC20(USDTAddress);
-        require(USDTToken.balanceOf(address(this)) >= amount1, "Losing money or the liquidation fails.");
-        USDTToken.transfer(pairAddress, amount1);
+        console.log("Before the liquidation, in the current account: the amount of USDT is %s | the amount of WBTC is %s", USDTToken.balanceOf(address(this)), WBTCToken.balanceOf(address(this)));
+        USDTToken.approve(address(aav2LendingPool), USDTToken.balanceOf(address(this)));
+        aav2LendingPool.liquidationCall(WBTCAddress, USDTAddress, targetUser, USDTToken.balanceOf(address(this)), false);
+        console.log("After the liquidation, in the current account: the amount of USDT is %s | the amount of WBTC is %s", USDTToken.balanceOf(address(this)), WBTCToken.balanceOf(address(this)));
         // END TODO
+        uint256 amountWBTCReturned = getAmountIn(amount1, usdtWBTCPair_wbtc_reserve, usdtWBTCPair_usdt_reserve);
+        console.log("The required amount WBTC is %s | I only have WBTC %s", amountWBTCReturned, WBTCToken.balanceOf(address(this)));
+        //require(amountWBTCReturned <= WBTCToken.balanceOf(address(this)), "There is no sufficient WBTC to pay the debt.");
+        WBTCToken.transfer(msg.sender, WBTCToken.balanceOf(address(this)));
     }
 }
