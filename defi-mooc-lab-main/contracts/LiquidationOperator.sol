@@ -73,11 +73,20 @@ interface IERC20 {
     function transfer(address to, uint256 value) external returns (bool);
 }
 
+
+interface DERC20 {
+    function balanceOf(address owner) external view returns (uint256);
+    function approve(address spender, uint256 value) external; // return type is deleted to be compatible with USDT
+    function transfer(address to, uint256 value) external;
+}
+
 // https://github.com/Uniswap/v2-periphery/blob/master/contracts/interfaces/IWETH.sol
 interface IWETH is IERC20 {
     // Convert the wrapped token back to Ether.
     function withdraw(uint256) external;
 }
+
+
 
 // https://github.com/Uniswap/v2-core/blob/master/contracts/interfaces/IUniswapV2Callee.sol
 // The flash loan liquidator we plan to implement this time should be a UniswapV2 Callee
@@ -143,9 +152,11 @@ contract LiquidationOperator is IUniswapV2Callee {
     address USDTAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address WBTCAddress = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
 
-    IERC20 WETHToken;
-    IERC20 USDTToken;
+    IWETH WETHToken;
+    DERC20 USDTToken;
     IERC20 WBTCToken;
+
+
 
     IUniswapV2Pair wethUSDTPair;
     IUniswapV2Pair wethWBTCPair;
@@ -214,9 +225,10 @@ contract LiquidationOperator is IUniswapV2Callee {
         wethWBTCPair = IUniswapV2Pair(uniswapFactory.getPair(WETHAddress, WBTCAddress));
         usdtWBTCPair = IUniswapV2Pair(uniswapFactory.getPair(USDTAddress, WBTCAddress));
 
-        WETHToken = IERC20(WETHAddress);
-        USDTToken = IERC20(USDTAddress);
+        WETHToken = IWETH(WETHAddress);
+        USDTToken = DERC20(USDTAddress);
         WBTCToken = IERC20(WBTCAddress);
+        
         uint32 t1;
         uint32 t2;
         uint32 t3;
@@ -224,6 +236,7 @@ contract LiquidationOperator is IUniswapV2Callee {
         (wethWBTCPair_wbtc_reserve, wethWBTCPair_weth_reserve, t2) = wethWBTCPair.getReserves();
         (usdtWBTCPair_wbtc_reserve, usdtWBTCPair_usdt_reserve, t3) = usdtWBTCPair.getReserves();
         console.log("IN the USDT-WBTC pool, the number of WBTC is %s : ths number fo USDT is %s.", usdtWBTCPair_wbtc_reserve, usdtWBTCPair_usdt_reserve);
+        console.log("In the USDT-WETH pool, the number of USDT is %s : the number of WETH is %s.", wethUSDTPair_usdt_reserve, wethUSDTPair_weth_reserve);
     }
 
 
@@ -249,11 +262,21 @@ contract LiquidationOperator is IUniswapV2Callee {
         ) = aav2LendingPool.getUserAccountData(targetUser);
         require(healthFactor < 10 ** health_factor_decimals, "The target user does not need to be liquidated");
         uint256 eth_outstanding = totalDebtETH - totalCollateralETH * 2 / 3;
-        usdt_outstanding = getAmountOut(eth_outstanding, wethUSDTPair_weth_reserve, wethUSDTPair_usdt_reserve) / 1000;
+        usdt_outstanding = getAmountOut(eth_outstanding, wethUSDTPair_weth_reserve, wethUSDTPair_usdt_reserve) / 500;
         
         console.log("The USDT outstanding is %s", usdt_outstanding);
         if (usdt_outstanding > wethUSDTPair_usdt_reserve) usdt_outstanding = wethUSDTPair_usdt_reserve;
         wethUSDTPair.swap(0, usdt_outstanding, address(this), abi.encode("data"));
+
+        console.log("Going back to the caller function.");
+        uint256 wethAmount = getAmountOut(USDTToken.balanceOf(address(this)), wethUSDTPair_usdt_reserve, wethUSDTPair_weth_reserve);
+        console.log("Before the WETH - USDT exchange, I have %s WETH and I have %s USDT | The amount WETH I want is %s", WETHToken.balanceOf(address(this)), USDTToken.balanceOf(address(this)), wethAmount);
+        wethAmount = wethAmount * 997 / 1000 - 1;
+        USDTToken.transfer(address(wethUSDTPair), USDTToken.balanceOf(address(this)));
+        wethUSDTPair.swap(wethAmount, 0, address(this), new bytes(0));
+        console.log("After the WETH - USDT exchange, I have %s WETH", WETHToken.balanceOf(address(this)));
+        WETHToken.withdraw(WETHToken.balanceOf(address(this)));
+        console.log("After the WETH withdraw, I have %s WETH", WETHToken.balanceOf(address(this)));
     }
 
     function uniswapV2Call(
@@ -280,10 +303,12 @@ contract LiquidationOperator is IUniswapV2Callee {
 
         console.log("The usdt I owe is %s | I own is %s", amount1, USDTToken.balanceOf(address(this)));
         require(amount1 <= USDTToken.balanceOf(address(this)), "It is a lossing money trade");
-        uint fee = (amount1 * 3) / 997 + 1;
+        uint fee = (amount1 * 3) / 1000 + 1;
         uint amountToRepay = amount1 + fee;
-
-        require(USDTToken.transfer(msg.sender, amountToRepay), "Transferring back");
-        
+        console.log("Before repaying, I have %s USDT.", USDTToken.balanceOf(address(this)));
+        console.log("Amount to repay: %s", amountToRepay);
+        amountToRepay = amountToRepay * 1003 / 1000 + 1;
+        USDTToken.transfer(msg.sender, amountToRepay);
+        console.log("After repaying, I have %s USDT", USDTToken.balanceOf(address(this)));
     }
 }
